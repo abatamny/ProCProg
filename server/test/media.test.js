@@ -90,7 +90,7 @@ test('image upload returns 202, processes in the bounded queue, and publishes wh
     assert.deepEqual(
       await sharp(fs.readFileSync(thumbPath)).metadata()
         .then(({ width, height }) => ({ width, height })),
-      { width: 128, height: 80 },
+      { width: 320, height: 200 },
     );
     assert.deepEqual(
       await sharp(fs.readFileSync(mediumPath)).metadata()

@@ -22,13 +22,13 @@ stage-5 surface. Only Stones & Words (`reaction`) remains a deliberate no-op
 - **Same origin, relative paths.** The client only ever calls `/api/*`,
   `/ws`, and `/media/*` on its own origin. In development, Vite (port 3443,
   HTTPS via mkcert) proxies all three to Fastify on `http://127.0.0.1:3000`
-  (`ws: true` for `/ws`). In production nginx does the same. The client must
-  never hardcode a host or port.
+  (`ws: true` for `/ws`). In production Caddy terminates HTTPS and proxies the
+  origin to Fastify. The client must never hardcode a host or port.
 - **HTTPS is mandatory** on phones — geolocation and camera require a secure
   context. WS URL is derived from page protocol: `https:` → `wss:`.
-- `GET /media/:filename` is served by Fastify **in development only**
-  (`NODE_ENV=development`); in production nginx serves the files. Media URLs
-  arrive from the server already prefixed with `/media/`.
+- `GET /media/:filename` is served by Fastify from `MEDIA_PATH` in both
+  development and the containerized production runtime. Media URLs arrive
+  from the server already prefixed with `/media/`.
 - Fastify body limit 5 MB. WS max inbound payload 64 KB.
 
 ## 2. Session model
@@ -104,7 +104,7 @@ Called once on every app open before connecting the socket.
 
 Semantics (important for optimistic UI):
 
-- **202 means accepted, not ready.** Thumb (128px), medium (800px) and
+- **202 means accepted, not ready.** Thumb (320px), medium (800px) and
   dominant color are generated on a background queue.
 - Upload is **content-addressed (SHA-256)**: uploading identical bytes twice
   returns the same `mediaId`. Safe to retry blindly.
@@ -112,7 +112,7 @@ Semantics (important for optimistic UI):
   by the `knock_new` WS broadcast, which the server withholds for an image
   knock until thumb + medium + dominant color all exist.
 
-### 3.5 `GET /media/:filename` — image bytes (dev-only route; nginx in prod)
+### 3.5 `GET /media/:filename` — image bytes
 
 - Filename shape: `<sha256-hex>-(original|thumb|medium).webp` (regex-enforced).
 - Response: `image/webp` with `cache-control: public, max-age=31536000,
@@ -238,7 +238,7 @@ Knock = {
   createdAt: string,             // ISO-8601 UTC with ms, e.g. "2026-07-11T09:15:04.123Z"
   nickname: string,
   dominantColor: string | null,  // "#rrggbb" — null for text knocks
-  thumbUrl: string | null,       // "/media/<hash>-thumb.webp" (128px)
+  thumbUrl: string | null,       // "/media/<hash>-thumb.webp" (320px)
   mediumUrl: string | null,      // 800px — viewer size
   originalUrl: string | null
 }

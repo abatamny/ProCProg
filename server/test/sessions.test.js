@@ -102,6 +102,13 @@ test('configuration fails fast without admin access and enforces one-second broa
   );
   assert.throws(
     () => loadConfig({
+      NODE_ENV: 'production',
+      ADMIN_PASSWORD: 'replace-with-a-long-password',
+    }),
+    /ADMIN_PASSWORD must be changed from the example value/,
+  );
+  assert.throws(
+    () => loadConfig({
       NODE_ENV: 'development',
       ADMIN_PASSWORD: 'configured',
       PRESENCE_BROADCAST_MS: '999',

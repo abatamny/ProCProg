@@ -2,6 +2,7 @@
 .env
 /data/
 /media/
+/backups/
 /certs/
 /.certs/
 /place-app-rootCA.crt

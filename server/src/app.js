@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { createReadStream, promises as fs } from 'node:fs';
+import path from 'node:path';
+import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { createDatabase, getJournalMode } from './db/database.js';
 import { createRealtimeServer } from './realtime/websocket.js';
@@ -23,6 +25,21 @@ function passwordMatches(received, expected) {
   const expectedBuffer = Buffer.from(expected);
   return receivedBuffer.length === expectedBuffer.length
     && timingSafeEqual(receivedBuffer, expectedBuffer);
+}
+
+function setClientCacheHeaders(response, filePath, clientDistPath) {
+  const relativePath = path.relative(clientDistPath, filePath);
+  const isHashedAsset = relativePath.startsWith(`assets${path.sep}`);
+  response.setHeader(
+    'cache-control',
+    isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
+  );
+}
+
+function isAllowedMediaPath(pathName, media) {
+  const filename = pathName.replace(/^[/\\]+/, '');
+  if (!filename || filename.includes('/') || filename.includes('\\')) return false;
+  return Boolean(media.resolvePublicFile(filename));
 }
 
 export function buildApp({ config, tlsOptions = null, database = null, logger } = {}) {
@@ -130,6 +147,37 @@ export function buildApp({ config, tlsOptions = null, database = null, logger } 
         .header('cache-control', 'public, max-age=31536000, immutable')
         .type('image/webp')
         .send(createReadStream(filePath));
+    });
+  }
+
+  if (config.nodeEnv === 'production') {
+    if (config.clientDistPath) {
+      app.register(fastifyStatic, {
+        root: config.clientDistPath,
+        prefix: '/',
+        cacheControl: false,
+        setHeaders: (response, filePath) => {
+          setClientCacheHeaders(response, filePath, config.clientDistPath);
+        },
+      });
+
+      const sendClientIndex = (_request, reply) => reply
+        .header('cache-control', 'no-cache')
+        .sendFile('index.html');
+      app.get('/admin', sendClientIndex);
+      app.get('/admin/*', sendClientIndex);
+    }
+
+    app.register(fastifyStatic, {
+      root: config.mediaPath,
+      prefix: '/media/',
+      decorateReply: !config.clientDistPath,
+      cacheControl: false,
+      allowedPath: (pathName) => isAllowedMediaPath(pathName, media),
+      setHeaders: (response) => {
+        response.setHeader('cache-control', 'public, max-age=31536000, immutable');
+        response.setHeader('x-content-type-options', 'nosniff');
+      },
     });
   }
 

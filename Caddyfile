@@ -1,0 +1,33 @@
+{
+	# IP-literal TLS clients usually send no SNI. This lets Caddy select the
+	# managed public-IP certificate even though it runs behind Docker NAT.
+	default_sni {$SITE_ADDRESS}
+}
+
+(domain_tls) {
+	tls force_automate
+}
+
+(ip_tls) {
+	tls {
+		issuer acme https://acme-v02.api.letsencrypt.org/directory {
+			# Let's Encrypt requires this profile for public IP certificates.
+			profile shortlived
+		}
+	}
+}
+
+https://{$SITE_ADDRESS} {
+	import {$TLS_MODE:domain_tls}
+
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+
+	reverse_proxy app:3000
+}

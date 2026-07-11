@@ -31,6 +31,9 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     ? 'faculty-data-decision-sciences'
     : env.FORCE_PLACE_ID.trim() || null;
   if (!adminPassword) throw new Error('ADMIN_PASSWORD is required');
+  if (nodeEnv === 'production' && adminPassword === 'replace-with-a-long-password') {
+    throw new Error('ADMIN_PASSWORD must be changed from the example value');
+  }
 
   return {
     nodeEnv,
@@ -39,6 +42,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     logLevel: env.LOG_LEVEL || 'info',
     databasePath: path.resolve(cwd, env.DATABASE_PATH || './data/place-app.sqlite'),
     mediaPath: path.resolve(cwd, env.MEDIA_PATH || './media'),
+    clientDistPath: optionalPath(env.CLIENT_DIST_PATH, cwd),
     adminPassword,
     forcePlaceId,
     tlsKeyPath: optionalPath(env.TLS_KEY_PATH, cwd),
