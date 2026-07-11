@@ -1,0 +1,162 @@
+/* ==========================================================================
+   Paper & Ink — the single design-system file (SPEC §1).
+   Every color in the app comes from these variables. Green means "happening
+   right now" and nothing else; clay means "engraved / permanent" and nothing
+   else. No other hues exist.
+   ========================================================================== */
+
+:root {
+  /* Palette — exactly the SPEC §1 set */
+  --paper: #FAFAF7;
+  --ink: #141414;
+  --clay: #D85A30;
+  --clay-muted: #993C1D;
+  --live: #1D9E75;
+  --gray: #8A8A82;
+  --gray-muted: #B4B2A9;
+  --hairline: #E5E3DB;
+
+  /* Derived paper tones (paper mixed with the grays above — no new hues) */
+  --paper-deep: #F1EFE8;      /* "going underground" scroll tone */
+  --ink-soft: rgba(20, 20, 20, 0.72);
+  --paper-on-ink: rgba(250, 250, 247, 0.92);
+  --paper-on-ink-dim: rgba(250, 250, 247, 0.55);
+
+  /* Typography */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Type scale (SPEC §1: place name hero 28–32 / 20–22 compact;
+     body 14–15; nicknames & timestamps ALWAYS 11–12 gray) */
+  --text-hero: 30px;
+  --text-title: 21px;
+  --text-section: 12px;        /* uppercase section rules */
+  --text-body: 15px;
+  --text-meta: 11.5px;
+
+  /* Layout */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --header-h: 60px;
+  --nav-h: 56px;
+  --radius-card: 18px;
+  --radius-viewer: 24px;
+
+  /* Motion */
+  --ease-morph: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.44, 1);
+  --dur-morph: 500ms;
+  --dur-melt: 350ms;
+  --dur-quick: 200ms;
+  --dur-slide: 320ms;
+}
+
+/* ---- Base ---- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--ink);
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* People never get large type (SPEC §1) */
+.meta {
+  font-size: var(--text-meta);
+  color: var(--gray);
+  line-height: 1.4;
+}
+
+/* The two meaning colors, as reusable atoms */
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  flex-shrink: 0;
+}
+
+.live-dot--pulse {
+  animation: live-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29, 158, 117, 0.45); }
+  55% { box-shadow: 0 0 0 6px rgba(29, 158, 117, 0); }
+}
+
+/* ---- Reduced motion: everything falls back to fades ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

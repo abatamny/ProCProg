@@ -1,0 +1,10 @@
+/node_modules/
+.env
+/data/
+/media/
+/certs/
+/.certs/
+/place-app-rootCA.crt
+/client/dist/
+/legacy-frontend/dist/
+*.log

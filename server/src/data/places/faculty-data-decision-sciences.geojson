@@ -1,0 +1,27 @@
+{
+  "type": "Feature",
+  "properties": {
+    "id": "faculty-data-decision-sciences",
+    "name": "Faculty of Data and Decision Sciences",
+    "slug": "faculty-data-decision-sciences",
+    "parentPlaceId": "technion",
+    "source": "OpenStreetMap way 69707031; Data and Decision Sciences - Cooper Building",
+    "sourceLicense": "ODbL-1.0"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [35.0240032, 32.7744219],
+      [35.0234539, 32.7744028],
+      [35.0234424, 32.7742648],
+      [35.0234343, 32.7741672],
+      [35.0232154, 32.7741606],
+      [35.0232149, 32.7741135],
+      [35.0232142, 32.7740399],
+      [35.0239933, 32.7740048],
+      [35.0239912, 32.7741869],
+      [35.0239886, 32.7742790],
+      [35.0240032, 32.7744219]
+    ]]
+  }
+}

@@ -1,0 +1,196 @@
+/* Operator console — utilitarian, same Paper & Ink tokens, phone + desktop. */
+
+.adm {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: calc(14px + var(--safe-top)) 16px calc(28px + var(--safe-bottom));
+}
+
+.adm--gate {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.adm__gate {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.adm__gate h1 { font-size: 22px; }
+
+.adm__gate input,
+.adm__field input,
+.adm__field select,
+.adm__data-block input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 15px;
+  outline: none;
+}
+
+.adm__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.adm__head h1 { font-size: 20px; }
+
+.adm__tabs { display: flex; gap: 6px; }
+
+.adm__tabs button {
+  padding: 8px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.adm__tabs button[data-active='true'] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.adm__notice {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.adm__panel { display: flex; flex-direction: column; gap: 14px; }
+
+.adm__force {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.adm__force p { font-size: 12.5px; color: var(--gray); margin-top: 2px; }
+
+.adm__btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.adm__btn:disabled { opacity: 0.4; }
+.adm__btn--small { padding: 6px 11px; font-size: 12px; }
+.adm__btn--ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.adm__btn--clay { background: var(--clay); color: var(--paper); border-color: var(--clay); padding: 14px; }
+.adm__btn--live { background: var(--live); color: var(--paper); border-color: var(--live); }
+.adm__btn--danger { color: var(--clay-muted); border-color: rgba(153, 60, 29, 0.4); }
+
+.adm__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--gray);
+  font-weight: 600;
+}
+
+.adm__list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.adm__rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.adm__row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: #fff;
+}
+
+.adm__row:last-child { border-bottom: none; }
+
+.adm__row img,
+.adm__row-noimg {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.adm__row-noimg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hairline);
+  color: var(--gray);
+  font-size: 10px;
+}
+
+.adm__row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm__row-caption { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm__row-caption em { color: var(--gray); }
+.adm__row-meta { font-size: 11.5px; color: var(--gray); }
+
+.adm__seed {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(216, 90, 48, 0.14);
+  color: var(--clay-muted);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+}
+
+.adm__empty { padding: 14px; color: var(--gray); font-size: 13.5px; background: #fff; }
+
+.adm__data-block {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.adm__data-block p { font-size: 13px; color: var(--gray); }
+.adm__data-block--danger { border-color: rgba(153, 60, 29, 0.4); }
+.adm__data-block code {
+  background: var(--hairline);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
