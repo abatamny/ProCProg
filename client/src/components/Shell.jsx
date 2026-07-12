@@ -153,13 +153,21 @@ export function Shell({
 
   const place = snapshot.place;
 
-  // Backstop: if the on-screen keyboard closes without the composer blurring
-  // (can happen on Android), the returning viewport height clears the state.
+  // Backstop for the rare Android case where the keyboard closes (e.g. the
+  // back button) without the composer blurring: only clear AFTER the viewport
+  // has actually shrunk (keyboard was really up) and then returned — so a
+  // spurious full-height resize never cancels the focus-driven state.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return undefined;
+    let shrunk = false;
     function onResize() {
-      if (vv.height >= window.innerHeight - 120) setKeyboardOpen(false);
+      if (vv.height < window.innerHeight - 120) {
+        shrunk = true;
+      } else if (shrunk) {
+        shrunk = false;
+        setKeyboardOpen(false);
+      }
     }
     vv.addEventListener('resize', onResize);
     return () => vv.removeEventListener('resize', onResize);
