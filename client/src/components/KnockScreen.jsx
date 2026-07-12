@@ -444,7 +444,7 @@ export function KnockScreen({
             </div>
             <form className="composer__row" onSubmit={submitText}>
               <textarea
-                rows="2"
+                rows="1"
                 value={draft}
                 disabled={!connected}
                 placeholder={connected ? 'Knock on this place…' : 'The place is reconnecting…'}
