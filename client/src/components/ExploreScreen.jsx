@@ -9,13 +9,14 @@ import { remainingFraction, shortDate, strataLabel } from '../lib/time.js';
 import { InkViewer } from './InkViewer.jsx';
 
 const BUBBLE_CAP = 12;
+const CHAMBER_MS = 640; // surface ↔ kept travel time
 
 /* Engrave flight beats (ms). The demo's peak moment — deliberately longer
    than a UI transition so 100 people can track it on a projector. */
 const FLIGHT = {
   select: 380,     // clay ring flash on the chosen bubbles, drift freezes
-  gather: 650,     // bubbles cluster; the feed auto-scrolls in sync
-  descend: 850,    // the cluster travels down into the Memories zone
+  gather: 680,     // bubbles cluster while the page descends underground
+  descend: 850,    // the cluster travels down into the new memory card
   stagger: 70,     // per-bubble start offset during descent
   resolve: 450,    // bubbles collapse into the materializing card
   glow: 1000,      // clay afterglow on the settled card
@@ -23,41 +24,6 @@ const FLIGHT = {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function smoothScrollTo(el, top, duration) {
-  return new Promise((resolve) => {
-    const start = el.scrollTop;
-    const delta = top - start;
-    if (Math.abs(delta) < 4 || duration <= 0) {
-      el.scrollTop = top;
-      resolve();
-      return;
-    }
-    let done = false;
-    function finish() {
-      if (done) return;
-      done = true;
-      el.scrollTop = top;
-      resolve();
-    }
-    // rAF never fires in a hidden tab — without this guard the flight would
-    // hang forever if the user backgrounds the app mid-engrave.
-    const guard = window.setTimeout(finish, duration + 250);
-    const t0 = performance.now();
-    function step(t) {
-      if (done) return;
-      const p = Math.min(1, (t - t0) / duration);
-      const eased = p < 0.5 ? 2 * p * p : 1 - ((-2 * p + 2) ** 2) / 2;
-      el.scrollTop = start + delta * eased;
-      if (p < 1) requestAnimationFrame(step);
-      else {
-        window.clearTimeout(guard);
-        finish();
-      }
-    }
-    requestAnimationFrame(step);
-  });
 }
 
 function CaptureSheet({ file, connected, onCancel, onSubmit }) {
@@ -113,6 +79,7 @@ export function ExploreScreen({
   snapshot, active, connected, confirmedIds, onConfirmMoment, onViewerToggle,
 }) {
   const place = snapshot.place;
+  const [deep, setDeep] = useState(false);
   const [enrich, setEnrich] = useState(() => new Map());
   const [extraMemories, setExtraMemories] = useState([]);
   const [cursor, setCursor] = useState(null);
@@ -121,19 +88,26 @@ export function ExploreScreen({
   const [captureFile, setCaptureFile] = useState(null);
   const [viewer, setViewer] = useState(null);
   const [fanning, setFanning] = useState(null);
-  const [newAtTop, setNewAtTop] = useState(0);
   const [freshIds, setFreshIds] = useState(() => new Set());
+  const [newWhileDeep, setNewWhileDeep] = useState(false);
   const [hiddenIds, setHiddenIds] = useState(() => new Set());
   const [flight, setFlight] = useState(null); // {memoryId, phase, clones:[...]}
   const [now, setNow] = useState(Date.now());
-  const scrollerRef = useRef(null);
-  const depthRef = useRef(null);
+
+  const trackRef = useRef(null);
+  const keptScrollerRef = useRef(null);
   const fileInputRef = useRef(null);
   const bubbleRefs = useRef(new Map());
   const cloneRefs = useRef(new Map());
   const lastFlightMemory = useRef(null);
+  const chamberDrag = useRef(null);
+  const deepRef = useRef(deep);
+  deepRef.current = deep;
   const activeRef = useRef(active);
   activeRef.current = active;
+  const overlayOpen = Boolean(viewer || captureFile);
+  const overlayRef = useRef(overlayOpen);
+  overlayRef.current = overlayOpen;
   const prevMomentIds = useRef(new Set(snapshot.liveMoments.map((moment) => moment.id)));
   const pendingRef = useRef(pending);
   useEffect(() => { pendingRef.current = pending; }, [pending]);
@@ -153,6 +127,7 @@ export function ExploreScreen({
     setEnrich(new Map());
     setExtraMemories([]);
     setCursor(null);
+    setDeep(false);
     fetchMemoriesPage({ placeId: place.id })
       .then((page) => {
         if (cancelled) return;
@@ -163,8 +138,8 @@ export function ExploreScreen({
     return () => { cancelled = true; };
   }, [place.id]);
 
-  // New moments: pop-in animation for fresh arrivals, and the "N new
-  // moments ↑" pill when the user is scrolled deep.
+  // New moments: pop-in for fresh arrivals; if the user is underground,
+  // a live dot appears on the "back to now" lip instead of yanking them up.
   useEffect(() => {
     const currentIds = new Set(snapshot.liveMoments.map((moment) => moment.id));
     const arrivals = [];
@@ -183,10 +158,7 @@ export function ExploreScreen({
       });
     }, 1_500);
 
-    const scroller = scrollerRef.current;
-    if (scroller && scroller.scrollTop > 320) {
-      setNewAtTop((count) => count + arrivals.length);
-    }
+    if (deepRef.current) setNewWhileDeep(true);
     return () => window.clearTimeout(timer);
   }, [snapshot.liveMoments]);
 
@@ -202,22 +174,10 @@ export function ExploreScreen({
     }));
   }, [snapshot.liveMoments]);
 
-  function handleScroll() {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    if (scroller.scrollTop <= 320) setNewAtTop(0);
-    // "Going underground": the paper leans toward stone as you dig.
-    if (depthRef.current) {
-      depthRef.current.style.opacity = String(Math.min(0.55, scroller.scrollTop / 1600));
-    }
-  }
-
   const liveMoments = useMemo(() => (
     snapshot.liveMoments.filter((moment) => now - Date.parse(moment.createdAt) < DAY_MS)
   ), [snapshot.liveMoments, now]);
 
-  // Size order decides slot placement so big bubbles sit central. Moments
-  // taken by an engrave flight are dropped here (their clones own the story).
   const bubbles = useMemo(() => {
     const sorted = [...liveMoments]
       .filter((moment) => !hiddenIds.has(moment.id))
@@ -254,11 +214,104 @@ export function ExploreScreen({
     return groups;
   }, [memories, now]);
 
-  // ---- Engrave flight: bubbles detach, travel down, become the card ----
+  // ---- The two chambers: surface (this moment) ↕ kept (the archive) ----
 
-  // Trigger: a freshly engraved memory landed in the snapshot. Capture the
-  // source bubbles' screen rects BEFORE hiding them (layout effect runs
-  // pre-paint, so the originals never flash frozen).
+  function travel(toDeep) {
+    setDeep(toDeep);
+    if (!toDeep) setNewWhileDeep(false);
+  }
+
+  function chamberHeight() {
+    return (trackRef.current?.clientHeight ?? 0) / 2;
+  }
+
+  function setTrackOffset(px, animate) {
+    const track = trackRef.current;
+    if (!track) return;
+    track.style.transition = animate
+      ? `transform ${CHAMBER_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`
+      : 'none';
+    track.style.transform = `translateY(${px}px)`;
+  }
+
+  useEffect(() => {
+    setTrackOffset(deep ? -chamberHeight() : 0, true);
+  }, [deep]);
+
+  // Keep the track aligned when the viewport resizes (keyboard, rotation).
+  useEffect(() => {
+    function realign() { setTrackOffset(deepRef.current ? -chamberHeight() : 0, false); }
+    window.addEventListener('resize', realign);
+    return () => window.removeEventListener('resize', realign);
+  }, []);
+
+  function beginChamberDrag(event, mode) {
+    if (overlayRef.current || flight) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    chamberDrag.current = {
+      id: event.pointerId,
+      startY: event.clientY,
+      startX: event.clientX,
+      mode, // 'surface' (drag up to dig) | 'lip' (drag down to ascend)
+      engaged: false,
+      lastY: event.clientY,
+      lastT: performance.now(),
+      velocity: 0,
+    };
+  }
+
+  function moveChamberDrag(event) {
+    const drag = chamberDrag.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    const dy = event.clientY - drag.startY;
+    const dx = event.clientX - drag.startX;
+    if (!drag.engaged) {
+      if (Math.abs(dy) < 10 && Math.abs(dx) < 10) return;
+      if (Math.abs(dx) > Math.abs(dy)) { // horizontal → the tab pager owns it
+        chamberDrag.current = null;
+        return;
+      }
+      drag.engaged = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    const timeNow = performance.now();
+    drag.velocity = 0.75 * drag.velocity
+      + 0.25 * ((event.clientY - drag.lastY) / Math.max(1, timeNow - drag.lastT));
+    drag.lastY = event.clientY;
+    drag.lastT = timeNow;
+
+    const height = chamberHeight();
+    if (drag.mode === 'surface') {
+      // digging: only upward drags travel; downward gets gentle resistance
+      const offset = dy < 0 ? Math.max(dy, -height) : dy * 0.15;
+      setTrackOffset(offset, false);
+    } else {
+      // ascending: only downward drags travel
+      const offset = dy > 0 ? Math.min(dy, height) : dy * 0.15;
+      setTrackOffset(-height + offset, false);
+    }
+  }
+
+  function endChamberDrag(event) {
+    const drag = chamberDrag.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    chamberDrag.current = null;
+    if (!drag.engaged) return;
+    const dy = event.clientY - drag.startY;
+    const height = chamberHeight();
+    if (drag.mode === 'surface') {
+      const commit = -dy > height * 0.2 || drag.velocity < -0.5;
+      if (commit) travel(true);
+      else setTrackOffset(0, true);
+    } else {
+      const commit = dy > height * 0.2 || drag.velocity > 0.5;
+      if (commit) travel(false);
+      else setTrackOffset(-height, true);
+    }
+  }
+
+  // ---- Engrave flight: bubbles dive under the surface into the archive ----
+
   useLayoutEffect(() => {
     const newMemory = snapshot.memories.find((memory) => memory.justEngraved);
     if (!newMemory || lastFlightMemory.current === newMemory.id) return;
@@ -298,15 +351,17 @@ export function ExploreScreen({
     // must never stay masked — force the end state if the beats overrun.
     const watchdog = window.setTimeout(() => {
       if (!cancelled) setFlight(null);
-    }, 6_500);
+    }, 7_000);
     (async () => {
-      const scroller = scrollerRef.current;
-      const card = scroller?.querySelector(`[data-memory-id="${flight.memoryId}"]`);
+      const keptScroller = keptScrollerRef.current;
+      const card = keptScroller?.querySelector(`[data-memory-id="${flight.memoryId}"]`);
 
-      // Reduced-motion / no-visible-bubbles / no-card path: resolve + glow only.
-      if (flight.clones.length === 0 || !scroller || !card) {
+      // Reduced-motion / no-visible-bubbles / no-card path: descend + glow.
+      if (flight.clones.length === 0 || !keptScroller || !card) {
+        if (keptScroller) keptScroller.scrollTop = 0;
+        travel(true);
         setFlight((f) => (f ? { ...f, phase: 'resolve' } : f));
-        await wait(FLIGHT.resolve);
+        await wait(Math.max(FLIGHT.resolve, CHAMBER_MS));
         if (cancelled) return;
         setFlight((f) => (f ? { ...f, phase: 'glow' } : f));
         await wait(FLIGHT.glow);
@@ -318,29 +373,26 @@ export function ExploreScreen({
       await wait(FLIGHT.select);
       if (cancelled) return;
 
-      // Beat 2 — gather into a loose cluster while the feed scrolls the
-      // landing point into view (the clones are fixed-position, so they
-      // visibly "lift off the page" as it moves under them).
-      const scrollerRect = scroller.getBoundingClientRect();
-      const cardTopInScroller = card.getBoundingClientRect().top - scrollerRect.top + scroller.scrollTop;
-      const targetScroll = Math.max(0, Math.min(
-        cardTopInScroller - scrollerRect.height * 0.42,
-        scroller.scrollHeight - scroller.clientHeight,
-      ));
-      const scrollPromise = smoothScrollTo(scroller, targetScroll, FLIGHT.gather);
+      // Beat 2 — gather into a loose cluster while the page itself descends
+      // underground (the fixed clones visibly stay above the moving page).
+      keptScroller.scrollTop = 0;
+      const wasDeep = deepRef.current;
+      if (!wasDeep) travel(true);
 
+      const trackRect = trackRef.current.getBoundingClientRect();
+      const viewCenterX = trackRect.left + trackRect.width / 2;
+      const viewTop = trackRect.top;
       const centers = flight.clones.map((clone) => ({
         x: clone.rect.left + clone.rect.width / 2,
         y: clone.rect.top + clone.rect.height / 2,
       }));
-      const gatherX = scrollerRect.left + scrollerRect.width / 2;
-      const gatherY = scrollerRect.top + scrollerRect.height * 0.38;
+      const gatherY = viewTop + (trackRect.height / 2) * 0.3;
 
       flight.clones.forEach((clone, index) => {
         const el = cloneRefs.current.get(clone.id);
         if (!el) return;
         const angle = (index / flight.clones.length) * Math.PI * 2;
-        const gx = gatherX + Math.cos(angle) * 16 - centers[index].x;
+        const gx = viewCenterX + Math.cos(angle) * 16 - centers[index].x;
         const gy = gatherY + Math.sin(angle) * 12 - centers[index].y;
         clone.gathered = { x: gx, y: gy };
         el.animate(
@@ -352,10 +404,10 @@ export function ExploreScreen({
         );
       });
 
-      await Promise.all([scrollPromise, wait(FLIGHT.gather + flight.clones.length * 45)]);
+      await wait(Math.max(FLIGHT.gather + flight.clones.length * 45, wasDeep ? 0 : CHAMBER_MS + 60));
       if (cancelled) return;
 
-      // Beat 3 — descend into the card's cover (recomputed after the scroll).
+      // Beat 3 — descend into the card's cover (recomputed after the travel).
       const cover = card.querySelector('.memory-card__cover');
       const coverRect = (cover ?? card).getBoundingClientRect();
       const landX = coverRect.left + coverRect.width / 2;
@@ -367,7 +419,6 @@ export function ExploreScreen({
         const from = clone.gathered;
         const toX = landX - centers[index].x;
         const toY = landY - centers[index].y;
-        // A gentle arc: the midpoint bows slightly toward the page center.
         const midX = (from.x + toX) / 2 + (toX - from.x) * 0.08;
         const midY = from.y + (toY - from.y) * 0.58;
         el.animate(
@@ -466,7 +517,7 @@ export function ExploreScreen({
       state: 'uploading',
       error: null,
     }]);
-    scrollerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    travel(false); // a new moment belongs to the surface
     processCapture(localId, file, caption);
   }
 
@@ -551,22 +602,54 @@ export function ExploreScreen({
   }
 
   return (
-    <div className="explore">
-      <div className="explore__depth" ref={depthRef} aria-hidden="true" />
-      <div className="explore__scroller" ref={scrollerRef} onScroll={handleScroll}>
+    <div className={`explore${deep ? ' explore--deep' : ''}`}>
+      <div className="chambers" ref={trackRef}>
 
-        <section className="explore__live">
-          <div className="section-rule section-rule--live">
+        {/* ---- Chamber 1: the surface — this moment, today ---- */}
+        <section
+          className="chamber chamber--surface"
+          aria-hidden={deep}
+          onPointerDown={(event) => beginChamberDrag(event, 'surface')}
+          onPointerMove={moveChamberDrag}
+          onPointerUp={endChamberDrag}
+          onPointerCancel={endChamberDrag}
+        >
+          <div className="surface-anchor">
+            <svg width="46" height="43" viewBox="0 0 200 190" aria-hidden="true">
+              <path className="surface-anchor__fill" d="M 62 34 L 150 26 L 176 96 L 128 172 L 40 146 Z" />
+              <path className="surface-anchor__stroke" d="M 62 34 L 150 26 L 176 96 L 128 172 L 40 146 Z" />
+            </svg>
+            <div className="surface-anchor__pres">
+              <span className="live-dot live-dot--pulse" aria-hidden="true" />
+              <strong>{snapshot.presenceCount}</strong>
+              <span>present now</span>
+            </div>
+          </div>
+          <div className="section-rule section-rule--live section-rule--center">
             <span className="live-dot live-dot--pulse" aria-hidden="true" />
-            <h2>LIVE NOW · fades in 24h</h2>
+            <h2>THIS MOMENT · TODAY</h2>
           </div>
 
           {liveEmpty ? (
-            <p className="explore__live-empty">
-              Nothing live right now. Be the first to capture this place. ↘
-            </p>
+            <div className="ghost">
+              <span className="ghost__bubble" aria-hidden="true" />
+              <h3 className="ghost__title">Nothing is happening — yet.</h3>
+              <p className="ghost__body">
+                This day is still unwritten. {snapshot.presenceCount > 1
+                  ? `${snapshot.presenceCount} people are here with you; someone has to go first.`
+                  : 'Someone has to go first.'}
+              </p>
+              <button
+                type="button"
+                className="ghost__cta"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera size={17} strokeWidth={2} aria-hidden="true" />
+                Capture this moment
+              </button>
+            </div>
           ) : (
-            <div className="bubble-field" style={{ touchAction: 'pan-y' }}>
+            <div className="surface-field">
               {pending.map((item, pendingIndex) => {
                 const slot = BUBBLE_SLOTS[(bubbles.visible.length + pendingIndex) % BUBBLE_SLOTS.length];
                 return (
@@ -666,96 +749,122 @@ export function ExploreScreen({
               ) : null}
             </div>
           )}
+
+          {/* the depth marker: sediment edge + a breathing handle */}
+          <button type="button" className="lip" onClick={() => travel(true)}>
+            <span className="lip__grab" aria-hidden="true">⌄</span>
+            <span className="lip__label">WHAT THIS PLACE KEEPS</span>
+            <span className="lip__count">
+              {memories.length === 0
+                ? 'nothing engraved here yet'
+                : `${memories.length}${cursor ? '+' : ''} ${memories.length === 1 ? 'memory' : 'memories'}, engraved where they happened`}
+            </span>
+          </button>
         </section>
 
-        <section className="explore__memories">
-          <div className="section-rule section-rule--engraved">
-            <h2>MEMORIES</h2>
+        {/* ---- Chamber 2: what this place keeps ---- */}
+        <section className="chamber chamber--kept" aria-hidden={!deep}>
+          <button
+            type="button"
+            className="surface-lip"
+            onClick={() => travel(false)}
+            onPointerDown={(event) => beginChamberDrag(event, 'lip')}
+            onPointerMove={moveChamberDrag}
+            onPointerUp={endChamberDrag}
+            onPointerCancel={endChamberDrag}
+          >
+            <span className="surface-lip__grab" aria-hidden="true">⌄</span>
+            <span className="surface-lip__label">
+              <span className={`live-dot${newWhileDeep ? ' live-dot--pulse' : ''}`} aria-hidden="true" />
+              BACK TO NOW · <strong>{snapshot.presenceCount}</strong>&nbsp;PRESENT
+              {newWhileDeep ? <span className="surface-lip__new">new</span> : null}
+            </span>
+          </button>
+
+          <div className="kept-head">
+            <h2>WHAT THIS PLACE KEEPS</h2>
           </div>
 
-          {memories.length === 0 ? (
-            <p className="explore__memories-empty">
-              This place has no memory yet. Be here when something happens.
-            </p>
-          ) : strata.map((group, groupIndex) => (
-            <div
-              key={group.label}
-              className="stratum"
-              style={{ '--stratum-fade': Math.max(0.78, 1 - groupIndex * 0.06) }}
-            >
-              <p className="stratum__label">{group.label}</p>
-              {group.items.map((memory) => (
-                <article
-                  key={memory.id}
-                  data-memory-id={memory.id}
-                  className={[
-                    'memory-card',
-                    memory.photoCount > 1 ? 'memory-card--album' : '',
-                    fanning === memory.id ? 'is-fanning' : '',
-                  ].filter(Boolean).join(' ') + flightClassFor(memory.id)}
-                >
-                  <button
-                    type="button"
-                    className="memory-card__cover"
-                    style={{ backgroundColor: memory.dominantColor || 'var(--hairline)' }}
-                    aria-label={`Open memory: ${memory.title}`}
-                    onClick={(event) => openMemory(memory, event)}
+          <div className="kept-scroll" ref={keptScrollerRef}>
+            {memories.length === 0 ? (
+              <div className="ghost ghost--kept">
+                <div className="ghost__strata" aria-hidden="true">
+                  <span /><span /><span />
+                </div>
+                <div className="ghost__card">THE FIRST MEMORY</div>
+                <h3 className="ghost__title">No memory here yet.</h3>
+                <p className="ghost__body">
+                  What happens here today can be engraved forever.
+                  Whoever stands here a year from now will find it.
+                </p>
+                <button type="button" className="ghost__cta ghost__cta--quiet" onClick={() => travel(false)}>
+                  ↑ Go be part of this place
+                </button>
+              </div>
+            ) : strata.map((group, groupIndex) => (
+              <div
+                key={group.label}
+                className="stratum"
+                style={{ '--stratum-fade': Math.max(0.78, 1 - groupIndex * 0.06) }}
+              >
+                <p className="stratum__label">{group.label}</p>
+                {group.items.map((memory) => (
+                  <article
+                    key={memory.id}
+                    data-memory-id={memory.id}
+                    className={[
+                      'memory-card',
+                      memory.photoCount > 1 ? 'memory-card--album' : '',
+                      fanning === memory.id ? 'is-fanning' : '',
+                    ].filter(Boolean).join(' ') + flightClassFor(memory.id)}
                   >
-                    {/* Covers always use the 800px medium — never the thumb
-                        tier — so full-width cards stay sharp. */}
-                    {memory.coverMediumUrl ? (
-                      <img
-                        src={memory.coverMediumUrl}
-                        alt=""
-                        loading="lazy"
-                        draggable="false"
-                      />
-                    ) : null}
-                    {memory.photoCount > 1 ? (
-                      <span className="memory-card__count">
-                        <Layers size={12} aria-hidden="true" />
-                        {memory.photoCount}
-                      </span>
-                    ) : null}
-                    <span className="memory-card__glow" aria-hidden="true" />
-                  </button>
-                  <h3 className="memory-card__title">{memory.title}</h3>
-                  <p className="meta">
-                    {shortDate(memory.engravedAt)} · {memory.presenceTotal} were here
-                    {memory.photoCount > 1 ? ` · ${memory.photoCount} photos` : ''}
-                  </p>
-                </article>
-              ))}
-            </div>
-          ))}
+                    <button
+                      type="button"
+                      className="memory-card__cover"
+                      style={{ backgroundColor: memory.dominantColor || 'var(--hairline)' }}
+                      aria-label={`Open memory: ${memory.title}`}
+                      onClick={(event) => openMemory(memory, event)}
+                    >
+                      {memory.coverMediumUrl ? (
+                        <img
+                          src={memory.coverMediumUrl}
+                          alt=""
+                          loading="lazy"
+                          draggable="false"
+                        />
+                      ) : null}
+                      {memory.photoCount > 1 ? (
+                        <span className="memory-card__count">
+                          <Layers size={12} aria-hidden="true" />
+                          {memory.photoCount}
+                        </span>
+                      ) : null}
+                      <span className="memory-card__glow" aria-hidden="true" />
+                    </button>
+                    <h3 className="memory-card__title">{memory.title}</h3>
+                    <p className="meta">
+                      {shortDate(memory.engravedAt)} · {memory.presenceTotal} were here
+                      {memory.photoCount > 1 ? ` · ${memory.photoCount} photos` : ''}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ))}
 
-          {hasOlder ? (
-            <button
-              type="button"
-              className="older-memories"
-              disabled={loadingOlder}
-              onClick={loadOlder}
-            >
-              {loadingOlder ? 'digging…' : 'older memories'}
-            </button>
-          ) : null}
+            {hasOlder ? (
+              <button
+                type="button"
+                className="older-memories"
+                disabled={loadingOlder}
+                onClick={loadOlder}
+              >
+                {loadingOlder ? 'digging…' : 'older memories'}
+              </button>
+            ) : null}
+            <div className="kept-tail" />
+          </div>
         </section>
-        <div className="explore__tail" />
       </div>
-
-      {newAtTop > 0 ? (
-        <button
-          type="button"
-          className="pill pill--top"
-          onClick={() => {
-            setNewAtTop(0);
-            scrollerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-        >
-          <span className="live-dot" aria-hidden="true" />
-          {newAtTop} new {newAtTop === 1 ? 'moment' : 'moments'} ↑
-        </button>
-      ) : null}
 
       {active ? (
         <>
@@ -763,6 +872,8 @@ export function ExploreScreen({
             type="button"
             className="fab"
             aria-label="Capture this place"
+            aria-hidden={deep}
+            tabIndex={deep ? -1 : 0}
             onClick={() => fileInputRef.current?.click()}
           >
             <Camera size={24} strokeWidth={1.9} aria-hidden="true" />

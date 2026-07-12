@@ -134,11 +134,6 @@
   animation: pill-pop var(--dur-quick) var(--ease-spring);
 }
 
-.pill--top {
-  bottom: auto;
-  top: 12px;
-}
-
 @keyframes pill-pop {
   from { transform: translateX(-50%) translateY(8px) scale(0.9); opacity: 0; }
 }
@@ -919,51 +914,348 @@
 
 /* ---------- explore ---------- */
 
+/* Explore is two full chambers: the surface (this moment, today) and what
+   the place keeps. Swiping up digs underground; swiping down resurfaces.
+   The travel is one transform on the stacked track — nothing reflows. */
 .explore {
   height: 100%;
   position: relative;
+  overflow: hidden;
 }
 
-.explore__depth {
+.chambers {
   position: absolute;
   inset: 0;
-  background: var(--paper-deep);
-  opacity: 0;
-  pointer-events: none;
+  height: 200%;
+  will-change: transform;
 }
 
-.explore__scroller {
+.chamber {
+  height: 50%;
+  display: flex;
+  flex-direction: column;
   position: relative;
-  height: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overflow: hidden;
 }
 
-.explore__live-empty {
-  margin: 26px 16px 30px;
-  padding: 14px 0;
-  border-top: 1px solid var(--hairline);
-  border-bottom: 1px solid var(--hairline);
+.chamber--surface {
+  background: var(--paper);
+  touch-action: none; /* nothing scrolls here — vertical drags are the dig */
+}
+
+.surface-anchor {
+  flex: none;
+  text-align: center;
+  padding: 12px 16px 0;
+}
+
+.surface-anchor svg {
+  display: block;
+  margin: 0 auto 7px;
+}
+
+.surface-anchor__fill { fill: rgba(216, 90, 48, 0.07); }
+
+.surface-anchor__stroke {
+  fill: none;
+  stroke: var(--clay);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+.surface-anchor__pres {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(29, 158, 117, 0.35);
+}
+
+.surface-anchor__pres strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--live);
+}
+
+.surface-anchor__pres span {
+  font-size: 11px;
   color: var(--gray);
-  font-size: 14px;
 }
 
-.bubble-field {
+.section-rule--center {
+  justify-content: center;
+  margin: 12px 16px 2px;
+}
+
+.surface-field {
+  flex: 1;
+  min-height: 0;
   position: relative;
-  height: 330px;
-  margin: 2px 10px 12px;
+  margin: 0 10px;
 }
 
 /* Faint floor-glow the bubbles float over — an implied basin, never a hard
-   edge. Kept well below the Part-B clay highlight glow's strength so the two
-   never compete for attention. */
-.bubble-field::before {
+   edge. Kept well below the engrave glow's strength so they never compete. */
+.surface-field::before {
   content: '';
   position: absolute;
-  inset: -8% -6% -18%;
-  background: radial-gradient(ellipse 62% 58% at 50% 56%, rgba(20, 20, 20, 0.06), transparent 72%);
+  inset: 2% -4%;
+  background: radial-gradient(ellipse 60% 55% at 50% 52%, rgba(20, 20, 20, 0.06), transparent 72%);
   pointer-events: none;
+}
+
+/* The depth marker: a sediment edge peeking from the bottom of the present,
+   with a slowly-bobbing handle — "something is buried here". */
+.lip {
+  flex: none;
+  position: relative;
+  width: 100%;
+  background: var(--paper-deep);
+  text-align: center;
+  padding: 8px 16px 12px;
+  font: inherit;
+  color: inherit;
+}
+
+.lip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background:
+    linear-gradient(rgba(153, 60, 29, 0.35), rgba(153, 60, 29, 0.35)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(rgba(20, 20, 20, 0.12), rgba(20, 20, 20, 0.12)) 0 3px / 100% 1px no-repeat;
+}
+
+.lip__grab {
+  display: block;
+  margin: 0 auto 3px;
+  width: fit-content;
+  color: var(--clay-muted);
+  font-size: 15px;
+  line-height: 1;
+  animation: lip-bob 2.3s ease-in-out infinite;
+}
+
+@keyframes lip-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+.lip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--clay-muted);
+}
+
+.lip__label::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--clay);
+}
+
+.lip__count {
+  display: block;
+  font-size: 10.5px;
+  color: var(--gray);
+  margin-top: 2px;
+}
+
+/* ---- chamber 2: what this place keeps ---- */
+
+.chamber--kept { background: var(--paper-deep); }
+
+.surface-lip {
+  flex: none;
+  position: relative;
+  width: 100%;
+  background: var(--paper);
+  text-align: center;
+  padding: 10px 16px 8px;
+  font: inherit;
+  color: inherit;
+  box-shadow: 0 6px 14px -8px rgba(20, 20, 20, 0.18);
+  touch-action: none; /* grab the lip and pull the surface back down */
+  z-index: 2;
+}
+
+.surface-lip__grab {
+  display: block;
+  margin: 0 auto 3px;
+  width: fit-content;
+  color: var(--gray);
+  font-size: 15px;
+  line-height: 1;
+  transform: rotate(180deg);
+  animation: lip-bob 2.3s ease-in-out infinite reverse;
+}
+
+.surface-lip__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 1.8px;
+  color: var(--ink);
+}
+
+.surface-lip__label strong { color: var(--live); }
+
+.surface-lip__new {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--paper);
+  background: var(--live);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.kept-head {
+  flex: none;
+  text-align: center;
+  padding: 14px 16px 2px;
+}
+
+.kept-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--clay-muted);
+}
+
+.kept-head h2::before,
+.kept-head h2::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--clay);
+}
+
+.kept-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-top: 2px;
+}
+
+.kept-tail { height: 46px; }
+
+/* ---- full-height empty states: the chambers never shrink ---- */
+
+.ghost {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 36px;
+}
+
+.ghost--kept { min-height: 100%; padding-bottom: 40px; }
+
+.ghost__bubble {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--gray-muted);
+  margin-bottom: 26px;
+  animation: ghost-breath 3.6s ease-in-out infinite;
+}
+
+@keyframes ghost-breath {
+  50% { transform: scale(1.07); opacity: 0.55; }
+}
+
+.ghost__title {
+  font-size: 19px;
+  letter-spacing: -0.2px;
+  margin-bottom: 8px;
+}
+
+.ghost__body {
+  font-size: 13.5px;
+  color: var(--gray);
+  line-height: 1.6;
+  margin-bottom: 22px;
+  max-width: 270px;
+}
+
+.ghost__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--clay);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(216, 90, 48, 0.32);
+  transition: transform 140ms var(--ease-spring);
+}
+
+.ghost__cta:active { transform: scale(0.96); }
+
+.ghost__cta--quiet {
+  background: transparent;
+  color: var(--clay-muted);
+  border: 1.5px solid rgba(153, 60, 29, 0.4);
+  box-shadow: none;
+}
+
+.ghost__strata {
+  width: 100%;
+  max-width: 230px;
+  margin-bottom: 30px;
+}
+
+.ghost__strata span {
+  display: block;
+  height: 1px;
+  margin: 0 auto;
+  background: repeating-linear-gradient(90deg, var(--gray-muted) 0 5px, transparent 5px 11px);
+}
+
+.ghost__strata span:nth-child(1) { width: 100%; opacity: 0.7; }
+.ghost__strata span:nth-child(2) { width: 82%; margin-top: 24px; opacity: 0.5; }
+.ghost__strata span:nth-child(3) { width: 64%; margin-top: 24px; opacity: 0.32; }
+
+.ghost__card {
+  width: 100%;
+  max-width: 230px;
+  aspect-ratio: 3 / 1.3;
+  border-radius: 14px;
+  border: 1.5px dashed rgba(153, 60, 29, 0.4);
+  margin-bottom: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--clay-muted);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
 }
 
 /* Slot = position + size (transitions on growth); the bubble inside owns
@@ -1226,33 +1518,6 @@
   to { opacity: 0; }
 }
 
-/* The archive sits on the same deeper/warmer tone as the scroll-driven
-   "going underground" effect (--paper-deep, defined once in theme.css) —
-   a shelf above a lower shelf, not a new color. */
-.explore__memories {
-  position: relative;
-  background: var(--paper-deep);
-  padding-bottom: 8px;
-  padding-top: 2px;
-}
-
-.explore__memories::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 34px;
-  background: linear-gradient(to bottom, rgba(20, 20, 20, 0.075), rgba(20, 20, 20, 0) 100%);
-  pointer-events: none;
-}
-
-.explore__memories-empty {
-  margin: 14px 16px 34px;
-  color: var(--gray);
-  font-size: 14px;
-}
-
 .stratum { opacity: var(--stratum-fade, 1); }
 
 .stratum__label {
@@ -1358,12 +1623,10 @@
   letter-spacing: 0.4px;
 }
 
-.explore__tail { height: 90px; }
-
 .fab {
   position: absolute;
   right: 16px;
-  bottom: 22px;
+  bottom: 88px; /* clears the depth lip */
   z-index: 6;
   width: 58px;
   height: 58px;
@@ -1378,6 +1641,16 @@
 }
 
 .fab:active { transform: scale(0.92); }
+
+/* Capture belongs to the present — the button sinks away underground. */
+.fab {
+  transition: opacity 260ms ease, transform 150ms var(--ease-spring);
+}
+
+.explore--deep .fab {
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* ---------- capture sheet ---------- */
 
