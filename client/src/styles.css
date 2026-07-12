@@ -444,6 +444,7 @@
   opacity: 0;
   transform: translateY(100%);
   pointer-events: none;
+  display: none; /* don't reserve space for the floating nav while typing */
 }
 
 .shell--typing .knock {
