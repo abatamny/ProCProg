@@ -278,7 +278,6 @@ export function Shell({
                 <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
                 {dots[id] ? <span className="seal__dot" aria-hidden="true" /> : null}
               </span>
-              <span className="seal__label">{label}</span>
             </button>
           );
         })}
