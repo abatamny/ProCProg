@@ -146,12 +146,24 @@ export function Shell({
   const [confirmedIds, setConfirmedIds] = useState(() => new Set());
   const [profileVersion, setProfileVersion] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const activeTab = TABS[tabIndex].id;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
 
   const place = snapshot.place;
-  const parentLayer = snapshot.layerStack[1] ?? null;
+
+  // Backstop: if the on-screen keyboard closes without the composer blurring
+  // (can happen on Android), the returning viewport height clears the state.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    function onResize() {
+      if (vv.height >= window.innerHeight - 120) setKeyboardOpen(false);
+    }
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +195,7 @@ export function Shell({
   const changeTab = useCallback((nextIndex) => {
     setTabIndex(nextIndex);
     setDots((current) => ({ ...current, [TABS[nextIndex].id]: false }));
+    setKeyboardOpen(false); // leaving Knock always dismisses the composer state
   }, []);
 
   const confirmMoment = useCallback((momentId) => {
@@ -198,34 +211,13 @@ export function Shell({
   }, [sendEvent]);
 
   return (
-    <div className={`shell${preMorph ? ' shell--pre' : ''}`}>
-      <header className="hdr">
-        {connectionStatus !== 'connected' ? (
-          <div className="hdr__reconnect" role="status">
-            <span className="hdr__offline-dot" aria-hidden="true" />
-            Reconnecting…
-          </div>
-        ) : null}
-        <div className="hdr__row">
-          <div className="hdr__heading">
-            <h1 className="hdr__title" data-morph-title>{place.name}</h1>
-            {parentLayer ? (
-              <p className="hdr__parent">inside {parentLayer.name}</p>
-            ) : null}
-          </div>
-          <div
-            className="hdr__presence"
-            aria-label={`${snapshot.presenceCount} people here now`}
-          >
-            <span
-              className={`live-dot${connectionStatus === 'connected' ? ' live-dot--pulse' : ' live-dot--off'}`}
-              aria-hidden="true"
-            />
-            <strong>{snapshot.presenceCount}</strong>
-            <span className="hdr__presence-label">here</span>
-          </div>
+    <div className={`shell${preMorph ? ' shell--pre' : ''}${keyboardOpen ? ' shell--typing' : ''}`}>
+      {connectionStatus !== 'connected' ? (
+        <div className="reconnect" role="status">
+          <span className="reconnect__dot" aria-hidden="true" />
+          Reconnecting…
         </div>
-      </header>
+      ) : null}
 
       <TabPager index={tabIndex} onIndexChange={changeTab} locked={viewerOpen}>
         {[
@@ -237,6 +229,7 @@ export function Shell({
             connected={connectionStatus === 'connected'}
             sendEvent={sendEvent}
             onViewerToggle={setViewerOpen}
+            onTypingChange={setKeyboardOpen}
           />,
           <ExploreScreen
             key="explore"

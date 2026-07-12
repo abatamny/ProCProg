@@ -65,6 +65,7 @@ export function ProfileScreen({
     <div className="profile">
       <div className="profile__scroller">
         <header className="profile__head">
+          <p className="profile__place">{place.name}</p>
           <h2 className="profile__title">Your memories</h2>
           <p className="meta profile__private">only you see this page</p>
           <p className="meta">

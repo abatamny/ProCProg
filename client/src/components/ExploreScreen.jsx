@@ -79,6 +79,7 @@ export function ExploreScreen({
   snapshot, active, connected, confirmedIds, onConfirmMoment, onViewerToggle,
 }) {
   const place = snapshot.place;
+  const parentLayer = snapshot.layerStack[1] ?? null;
   const [deep, setDeep] = useState(false);
   const [enrich, setEnrich] = useState(() => new Map());
   const [extraMemories, setExtraMemories] = useState([]);
@@ -615,12 +616,19 @@ export function ExploreScreen({
           onPointerCancel={endChamberDrag}
         >
           <div className="surface-anchor">
-            <svg width="46" height="43" viewBox="0 0 200 190" aria-hidden="true">
+            <svg width="42" height="40" viewBox="0 0 200 190" aria-hidden="true">
               <path className="surface-anchor__fill" d="M 62 34 L 150 26 L 176 96 L 128 172 L 40 146 Z" />
               <path className="surface-anchor__stroke" d="M 62 34 L 150 26 L 176 96 L 128 172 L 40 146 Z" />
             </svg>
+            <h1 className="surface-anchor__name" data-morph-title>{place.name}</h1>
+            {parentLayer ? (
+              <p className="surface-anchor__parent">inside {parentLayer.name}</p>
+            ) : null}
             <div className="surface-anchor__pres">
-              <span className="live-dot live-dot--pulse" aria-hidden="true" />
+              <span
+                className={`live-dot${connected ? ' live-dot--pulse' : ' live-dot--off'}`}
+                aria-hidden="true"
+              />
               <strong>{snapshot.presenceCount}</strong>
               <span>present now</span>
             </div>

@@ -354,81 +354,26 @@
   from { opacity: 0; transform: translateY(10px); }
 }
 
-/* ---------- shell: header / pager / nav ---------- */
+/* ---------- shell: per-page top / pager / nav ----------
+   There is no global header. Each tab owns its own top: Knock shows the place
+   header, Explore carries the place identity in its anchor, Profile shows a
+   quiet place line. The shell only reserves the notch and floats the nav. */
 
 .shell {
   height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--paper);
-}
-
-.hdr {
-  position: relative;
-  flex: none;
-  z-index: 10;
-  background: var(--paper);
-  border-bottom: 1px solid var(--hairline);
   padding-top: var(--safe-top);
 }
 
-.hdr__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: var(--header-h);
-  padding: 5px 14px;
-}
-
-.hdr__heading { min-width: 0; }
-
-.hdr__title {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-  line-height: 1.1;
-  transition: opacity 180ms ease;
-}
-
-.hdr__parent {
-  font-size: 10px;
-  color: var(--gray);
-  margin-top: 1px;
-}
-
-.hdr__presence {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  transition: opacity 480ms ease 180ms;
-}
-
-.hdr__presence strong {
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.hdr__presence-label {
-  font-size: 10px;
-  color: var(--gray);
-}
-
-.shell--pre .hdr__title,
-.shell--pre .hdr__presence {
-  opacity: 0;
-}
-
-.live-dot--off { background: var(--gray-muted); animation: none; }
-
-.hdr__reconnect {
+/* Global reconnect strip — overlays the very top on any tab, transient. */
+.reconnect {
   position: absolute;
-  top: 100%;
+  top: var(--safe-top);
   left: 0;
   right: 0;
-  z-index: 9;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -439,11 +384,70 @@
   padding: 5px;
 }
 
-.hdr__offline-dot {
+.reconnect__dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--gray-muted);
+}
+
+.live-dot--off { background: var(--gray-muted); animation: none; }
+
+/* ---- Knock's own place header (only tab with one) ---- */
+
+.knock-hdr {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.knock-hdr__heading { min-width: 0; }
+
+.knock-hdr__title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1.1;
+}
+
+.knock-hdr__parent {
+  font-size: 10px;
+  color: var(--gray);
+  margin-top: 1px;
+}
+
+.knock-hdr__presence {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.knock-hdr__presence strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.knock-hdr__presence-label {
+  font-size: 10px;
+  color: var(--gray);
+}
+
+/* ---- typing on Knock: the seals get out of the way, the composer drops ---- */
+
+.shell--typing .seals {
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
+
+.shell--typing .knock {
+  padding-bottom: 0;
 }
 
 .pager {
@@ -487,6 +491,7 @@
   padding: 22px 0 calc(10px + var(--safe-bottom));
   background: linear-gradient(to top, var(--paper) 46%, rgba(250, 250, 247, 0) 100%);
   pointer-events: none; /* only the stones catch taps; paper gaps pass through */
+  transition: opacity 200ms ease, transform 240ms var(--ease-out);
 }
 
 .seal {
@@ -941,12 +946,42 @@
 .surface-anchor {
   flex: none;
   text-align: center;
-  padding: 12px 16px 0;
+  padding: 10px 16px 0;
 }
 
 .surface-anchor svg {
   display: block;
-  margin: 0 auto 7px;
+  margin: 0 auto 6px;
+}
+
+/* The place identity now lives here (no global header on Explore). This is
+   also the entry-morph landing spot — the loading name settles under the
+   polygon. */
+.surface-anchor__name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.12;
+  margin: 0 4px;
+}
+
+.surface-anchor__parent {
+  font-size: 10.5px;
+  color: var(--gray);
+  margin-top: 2px;
+}
+
+.surface-anchor__name,
+.surface-anchor__parent,
+.surface-anchor__pres {
+  transition: opacity 320ms ease;
+}
+
+.shell--pre .surface-anchor__name,
+.shell--pre .surface-anchor__parent,
+.shell--pre .surface-anchor__pres {
+  opacity: 0;
+  transition: none;
 }
 
 .surface-anchor__fill { fill: rgba(216, 90, 48, 0.07); }
@@ -962,6 +997,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  margin-top: 8px;
   padding: 5px 14px;
   border-radius: 999px;
   border: 1px solid rgba(29, 158, 117, 0.35);
@@ -1898,7 +1934,17 @@
   overscroll-behavior: contain;
 }
 
-.profile__head { margin: 24px 16px 6px; }
+.profile__head { margin: 20px 16px 6px; }
+
+/* The place context lives in-page here (no global header on Profile). */
+.profile__place {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--clay-muted);
+  margin-bottom: 8px;
+}
 
 .profile__title {
   font-size: 24px;

@@ -47,8 +47,9 @@ function LazyPrint({ src, alt, dominantColor, eager = false }) {
 }
 
 export function KnockScreen({
-  snapshot, nickname, active, connected, sendEvent, onViewerToggle,
+  snapshot, nickname, active, connected, sendEvent, onViewerToggle, onTypingChange,
 }) {
+  const parentLayer = snapshot.layerStack[1] ?? null;
   const [draft, setDraft] = useState('');
   const [composerOpen, setComposerOpen] = useState(false);
   const [targetPlaceId, setTargetPlaceId] = useState(snapshot.place.id);
@@ -263,6 +264,26 @@ export function KnockScreen({
 
   return (
     <div className="knock">
+      <header className="knock-hdr">
+        <div className="knock-hdr__heading">
+          <h1 className="knock-hdr__title">{snapshot.place.name}</h1>
+          {parentLayer ? (
+            <p className="knock-hdr__parent">inside {parentLayer.name}</p>
+          ) : null}
+        </div>
+        <div
+          className="knock-hdr__presence"
+          aria-label={`${snapshot.presenceCount} people here now`}
+        >
+          <span
+            className={`live-dot${connected ? ' live-dot--pulse' : ' live-dot--off'}`}
+            aria-hidden="true"
+          />
+          <strong>{snapshot.presenceCount}</strong>
+          <span className="knock-hdr__presence-label">here</span>
+        </div>
+      </header>
+
       <div className="knock__scroller" ref={scrollerRef} onScroll={handleScroll}>
         <div className="knock__intro">
           <p className="section-rule section-rule--plain">NOTES LEFT AT THIS PLACE</p>
@@ -415,6 +436,7 @@ export function KnockScreen({
                 onClick={() => {
                   setComposerOpen(false);
                   setPickerOpen(false);
+                  onTypingChange?.(false);
                 }}
               >
                 <ChevronDown size={17} aria-hidden="true" />
@@ -429,6 +451,8 @@ export function KnockScreen({
                 aria-label="Knock on this place"
                 enterKeyHint="send"
                 autoFocus
+                onFocus={() => onTypingChange?.(true)}
+                onBlur={() => onTypingChange?.(false)}
                 onChange={(event) => setDraft(event.target.value)}
               />
               <div className="composer__actions">
