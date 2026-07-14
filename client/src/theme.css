@@ -39,10 +39,9 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --header-h: 44px;
   --nav-h: 56px;
-  /* Space the floating seals occupy over content — every bottom-anchored
-     element (composer, depth-lip, FAB, logout) clears this. The stones stack
-     to ~90px (22 top-scrim + 58 disc + 10) so this leaves a ~16px gap. */
-  --nav-float-clear: calc(84px + var(--safe-bottom));
+  /* Space the floating Knock/Capture actions occupy over content — every
+     bottom-anchored element clears this. */
+  --nav-float-clear: calc(96px + var(--safe-bottom));
   --radius-card: 18px;
   --radius-viewer: 24px;
 

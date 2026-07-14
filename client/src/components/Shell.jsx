@@ -1,137 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Compass, Footprints, Hand } from 'lucide-react';
 import { fetchConfirmedMomentIds } from '../lib/api.js';
 import { ExploreScreen } from './ExploreScreen.jsx';
 import { KnockScreen } from './KnockScreen.jsx';
 import { ProfileScreen } from './ProfileScreen.jsx';
+import { Logo } from './Logo.jsx';
 
-const TABS = [
-  { id: 'knock', label: 'Knock', icon: Hand },
-  { id: 'explore', label: 'Explore', icon: Compass },
-  { id: 'profile', label: 'Profile', icon: Footprints },
-];
-
-/* Direction-aware, finger-following tab pager. Horizontal drags are axis-
-   locked after ~8px so they never fight vertical scroll; releases snap with
-   momentum. All movement is transform-only. */
-function TabPager({ index, onIndexChange, locked, children }) {
-  const trackRef = useRef(null);
-  const pagerRef = useRef(null);
-  const drag = useRef(null);
-  const indexRef = useRef(index);
-  indexRef.current = index;
-
-  // A focused element inside an overflow:hidden container can still scroll
-  // it (focus-scroll), desyncing the visual position from the transform.
-  // Pin scrollLeft to zero — the transform is the only source of truth.
-  function guardScroll() {
-    const pager = pagerRef.current;
-    if (pager && pager.scrollLeft !== 0) pager.scrollLeft = 0;
-  }
-
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    track.style.transition = 'transform var(--dur-slide) var(--ease-out)';
-    track.style.transform = `translate3d(${-index * 100}%, 0, 0)`;
-  }, [index]);
-
-  function settle(next) {
-    const track = trackRef.current;
-    track.style.transition = 'transform var(--dur-slide) var(--ease-out)';
-    track.style.transform = `translate3d(${-next * 100}%, 0, 0)`;
-    if (next !== indexRef.current) onIndexChange(next);
-  }
-
-  function onPointerDown(event) {
-    if (locked) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    drag.current = {
-      id: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      axis: null,
-      lastX: event.clientX,
-      lastT: performance.now(),
-      velocity: 0,
-    };
-  }
-
-  function onPointerMove(event) {
-    const state = drag.current;
-    if (!state || state.id !== event.pointerId) return;
-    const dx = event.clientX - state.startX;
-    const dy = event.clientY - state.startY;
-
-    if (!state.axis) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      state.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (state.axis === 'x') {
-        trackRef.current.setPointerCapture(event.pointerId);
-        trackRef.current.style.transition = 'none';
-      }
-    }
-    if (state.axis !== 'x') return;
-
-    const now = performance.now();
-    state.velocity = 0.75 * state.velocity
-      + 0.25 * ((event.clientX - state.lastX) / Math.max(1, now - state.lastT));
-    state.lastX = event.clientX;
-    state.lastT = now;
-
-    const at = indexRef.current;
-    const resist = (at === 0 && dx > 0) || (at === TABS.length - 1 && dx < 0) ? 0.32 : 1;
-    trackRef.current.style.transform = `translate3d(calc(${-at * 100}% + ${dx * resist}px), 0, 0)`;
-  }
-
-  function onPointerEnd(event) {
-    const state = drag.current;
-    if (!state || state.id !== event.pointerId) return;
-    drag.current = null;
-    if (state.axis !== 'x') return;
-    const dx = event.clientX - state.startX;
-    const width = trackRef.current.clientWidth || 1;
-    let next = indexRef.current;
-    // Distance OR a real flick — but never a micro-jitter that merely
-    // registered a high instantaneous velocity (sloppy taps must not swipe).
-    if (Math.abs(dx) > width * 0.3 || (Math.abs(dx) > 28 && Math.abs(state.velocity) > 0.45)) {
-      next += dx < 0 ? 1 : -1;
-    }
-    settle(Math.max(0, Math.min(TABS.length - 1, next)));
-  }
-
-  function onPointerCancel(event) {
-    const state = drag.current;
-    if (!state || state.id !== event.pointerId) return;
-    drag.current = null;
-    if (state.axis === 'x') settle(indexRef.current);
-  }
-
-  return (
-    <div className="pager" ref={pagerRef} onScroll={guardScroll}>
-      <div
-        className="pager__track"
-        ref={trackRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerEnd}
-        onPointerCancel={onPointerCancel}
-      >
-        {children.map((child, childIndex) => (
-          <section
-            key={TABS[childIndex].id}
-            className="pager__panel"
-            data-active={childIndex === index}
-            aria-hidden={childIndex !== index}
-          >
-            {child}
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
-
+/* Explore is the home canvas. Knock rises over it as a paper sheet with the
+   place blurred behind; Profile slides in from the identity chip. No nav. */
 export function Shell({
   snapshot,
   nickname,
@@ -141,37 +16,22 @@ export function Shell({
   subscribeFrames,
   onLogout,
 }) {
-  const [tabIndex, setTabIndex] = useState(1); // Explore is the landing page
-  const [dots, setDots] = useState({ knock: false, explore: false, profile: false });
+  const [knockOpen, setKnockOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [knockBadge, setKnockBadge] = useState(0);
+  const [toast, setToast] = useState(null); // {nickname, text}
+  const [chipDot, setChipDot] = useState(false);
   const [confirmedIds, setConfirmedIds] = useState(() => new Set());
   const [profileVersion, setProfileVersion] = useState(0);
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
-  const activeTab = TABS[tabIndex].id;
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
+  const knockOpenRef = useRef(knockOpen);
+  knockOpenRef.current = knockOpen;
+  const profileOpenRef = useRef(profileOpen);
+  profileOpenRef.current = profileOpen;
+  const toastTimer = useRef(null);
+  const sheetRef = useRef(null);
+  const sheetDrag = useRef(null);
 
   const place = snapshot.place;
-
-  // Backstop for the rare Android case where the keyboard closes (e.g. the
-  // back button) without the composer blurring: only clear AFTER the viewport
-  // has actually shrunk (keyboard was really up) and then returned — so a
-  // spurious full-height resize never cancels the focus-driven state.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return undefined;
-    let shrunk = false;
-    function onResize() {
-      if (vv.height < window.innerHeight - 120) {
-        shrunk = true;
-      } else if (shrunk) {
-        shrunk = false;
-        setKeyboardOpen(false);
-      }
-    }
-    vv.addEventListener('resize', onResize);
-    return () => vv.removeEventListener('resize', onResize);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,34 +41,35 @@ export function Shell({
     return () => { cancelled = true; };
   }, [place.id]);
 
-  // Cross-page notification dots (SPEC §2): dot only, meaning-colored,
-  // cleared on tab entry.
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  // Live events → gentle surfacing: a knock peek + badge while the sheet is
+  // closed; a dot on the identity chip when a memory includes you.
   useEffect(() => subscribeFrames((frame) => {
-    const map = { knock_new: 'knock', moment_new: 'explore', memory_engraved: 'explore' };
-    const targetTab = map[frame.type];
-    if (targetTab && targetTab !== activeTabRef.current) {
-      setDots((current) => ({ ...current, [targetTab]: true }));
+    if (frame.type === 'knock_new' && frame.payload?.knock) {
+      if (knockOpenRef.current) return;
+      const knock = frame.payload.knock;
+      if (knock.nickname === nickname) return; // your own echo isn't news
+      setKnockBadge((count) => count + 1);
+      setToast({
+        nickname: knock.nickname,
+        text: knock.type === 'image'
+          ? (knock.content ? `📷 ${knock.content}` : 'left a photo here')
+          : knock.content,
+      });
+      window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(null), 4_200);
     }
     if (frame.type === 'memory_engraved') {
       const mine = frame.payload?.participants?.some((entry) => entry.nickname === nickname);
       if (mine) {
         setProfileVersion((value) => value + 1);
-        if (activeTabRef.current !== 'profile') {
-          setDots((current) => ({ ...current, profile: true }));
-        }
+        if (!profileOpenRef.current) setChipDot(true);
       }
     }
   }), [subscribeFrames, nickname]);
 
-  const changeTab = useCallback((nextIndex) => {
-    setTabIndex(nextIndex);
-    setDots((current) => ({ ...current, [TABS[nextIndex].id]: false }));
-    setKeyboardOpen(false); // leaving Knock always dismisses the composer state
-  }, []);
-
   const confirmMoment = useCallback((momentId) => {
-    // Only flip optimistically if the frame actually left the socket;
-    // otherwise the button stays tappable and the user tries again.
     if (!sendEvent('moment_presence_confirm', { digId: momentId })) return;
     setConfirmedIds((current) => {
       if (current.has(momentId)) return current;
@@ -218,8 +79,55 @@ export function Shell({
     });
   }, [sendEvent]);
 
+  function openKnock() {
+    setKnockOpen(true);
+    setKnockBadge(0);
+    setToast(null);
+  }
+
+  function closeKnock() {
+    setKnockOpen(false);
+  }
+
+  function openProfile() {
+    setProfileOpen(true);
+    setChipDot(false);
+  }
+
+  // Pull the sheet down by its handle to dismiss it.
+  function sheetPointerDown(event) {
+    sheetDrag.current = { id: event.pointerId, startY: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function sheetPointerMove(event) {
+    const drag = sheetDrag.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    const dy = Math.max(0, event.clientY - drag.startY);
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = 'none';
+      sheetRef.current.style.transform = `translateY(${dy}px)`;
+    }
+  }
+
+  function sheetPointerEnd(event) {
+    const drag = sheetDrag.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    sheetDrag.current = null;
+    const dy = event.clientY - drag.startY;
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    sheet.style.transition = 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)';
+    if (dy > 110) {
+      sheet.style.transform = 'translateY(105%)';
+      window.setTimeout(closeKnock, 290);
+    } else {
+      sheet.style.transform = 'translateY(0)';
+    }
+  }
+
   return (
-    <div className={`shell${preMorph ? ' shell--pre' : ''}${keyboardOpen ? ' shell--typing' : ''}`}>
+    <div className={`shell${preMorph ? ' shell--pre' : ''}`}>
       {connectionStatus !== 'connected' ? (
         <div className="reconnect" role="status">
           <span className="reconnect__dot" aria-hidden="true" />
@@ -227,62 +135,74 @@ export function Shell({
         </div>
       ) : null}
 
-      <TabPager index={tabIndex} onIndexChange={changeTab} locked={viewerOpen}>
-        {[
-          <KnockScreen
-            key="knock"
-            snapshot={snapshot}
-            nickname={nickname}
-            active={activeTab === 'knock'}
-            connected={connectionStatus === 'connected'}
-            sendEvent={sendEvent}
-            onViewerToggle={setViewerOpen}
-            onTypingChange={setKeyboardOpen}
-          />,
-          <ExploreScreen
-            key="explore"
-            snapshot={snapshot}
-            nickname={nickname}
-            active={activeTab === 'explore'}
-            connected={connectionStatus === 'connected'}
-            confirmedIds={confirmedIds}
-            onConfirmMoment={confirmMoment}
-            onViewerToggle={setViewerOpen}
-          />,
-          <ProfileScreen
-            key="profile"
-            nickname={nickname}
-            active={activeTab === 'profile'}
-            profileVersion={profileVersion}
-            place={place}
-            onViewerToggle={setViewerOpen}
-            onLogout={onLogout}
-          />,
-        ]}
-      </TabPager>
+      <div className={`shell__home${knockOpen ? ' shell__home--dimmed' : ''}`}>
+        <ExploreScreen
+          snapshot={snapshot}
+          nickname={nickname}
+          connected={connectionStatus === 'connected'}
+          confirmedIds={confirmedIds}
+          onConfirmMoment={confirmMoment}
+          knockBadge={knockBadge}
+          chipDot={chipDot}
+          suspended={knockOpen || profileOpen}
+          onOpenKnock={openKnock}
+          onOpenProfile={openProfile}
+        />
+      </div>
 
-      {/* Three ink seals resting on the paper — no bar, no app chrome. */}
-      <nav className="seals" aria-label="Main navigation">
-        {TABS.map(({ id, label, icon: Icon }, navIndex) => {
-          const active = navIndex === tabIndex;
-          return (
-            <button
-              key={id}
-              type="button"
-              className={`seal seal--${id}`}
-              data-active={active}
-              aria-current={active ? 'page' : undefined}
-              aria-label={`${label}${dots[id] ? ', new activity' : ''}`}
-              onClick={() => changeTab(navIndex)}
+      {/* the knock peek: who + the first words, tap to open */}
+      {toast && !knockOpen ? (
+        <button type="button" className="knock-toast" onClick={openKnock}>
+          <span className="knock-toast__who">{toast.nickname} · just now</span>
+          <span className="knock-toast__txt">{toast.text}</span>
+        </button>
+      ) : null}
+
+      {knockOpen ? (
+        <div className="ksheet-layer">
+          <button
+            type="button"
+            className="ksheet-scrim"
+            aria-label="Close knocks"
+            onClick={closeKnock}
+          />
+          <div className="ksheet" ref={sheetRef} role="dialog" aria-label="Notes left at this place">
+            <div
+              className="ksheet__handle"
+              onPointerDown={sheetPointerDown}
+              onPointerMove={sheetPointerMove}
+              onPointerUp={sheetPointerEnd}
+              onPointerCancel={sheetPointerEnd}
             >
-              <span className="seal__disc">
-                <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
-                {dots[id] ? <span className="seal__dot" aria-hidden="true" /> : null}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+              <span className="ksheet__grab" aria-hidden="true" />
+              <div className="ksheet__hd">
+                <Logo size={16} />
+                <span className="ksheet__title">NOTES LEFT AT THIS PLACE</span>
+                <span className="ksheet__pres">
+                  <span className="live-dot live-dot--pulse" aria-hidden="true" />
+                  {snapshot.presenceCount}
+                </span>
+              </div>
+            </div>
+            <KnockScreen
+              snapshot={snapshot}
+              nickname={nickname}
+              connected={connectionStatus === 'connected'}
+              sendEvent={sendEvent}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {profileOpen ? (
+        <ProfileScreen
+          nickname={nickname}
+          profileVersion={profileVersion}
+          placeName={place.name}
+          onClose={() => setProfileOpen(false)}
+          onLogout={onLogout}
+        />
+      ) : null}
     </div>
   );
 }

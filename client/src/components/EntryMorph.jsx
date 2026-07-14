@@ -106,7 +106,7 @@ export function EntryMorph({ placeName, ready, onDone }) {
           </svg>
         </div>
         <p className="entry__status meta" aria-live="polite">
-          {stage === 'search' ? 'Finding this place…' : 'You are in'}
+          {stage === 'search' ? 'Finding where you are…' : 'You are in'}
         </p>
       </div>
       {placeName ? (

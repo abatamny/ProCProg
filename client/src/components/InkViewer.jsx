@@ -93,11 +93,15 @@ export function InkViewer({
     }
   }, [index, items]);
 
-  function step(direction) {
-    const next = index + direction;
+  function goTo(next) {
     if (next < 0 || next >= items.length) return;
-    setSlideDir(direction);
+    if (next === index) return;
+    setSlideDir(next > index ? 1 : -1);
     setIndex(next);
+  }
+
+  function step(direction) {
+    goTo(index + direction);
   }
 
   function requestClose() {
@@ -237,10 +241,10 @@ export function InkViewer({
       aria-modal="true"
       aria-label={item.caption || 'Photo'}
     >
-      <header className="viewer__top">
+      <header className="viewer__top viewer__topbar">
         <div className="viewer__place">
+          <span className="viewer__place-name">{placeName}</span>
           <span className="live-dot" aria-hidden="true" />
-          <span>{placeName}</span>
         </div>
         <button type="button" className="viewer__close" aria-label="Close" onClick={requestClose}>
           <X size={24} aria-hidden="true" />
@@ -264,44 +268,60 @@ export function InkViewer({
           {item.mediumUrl ? (
             <img src={item.mediumUrl} alt={item.caption || 'Captured moment'} draggable="false" />
           ) : null}
+
+          <figcaption className="viewer__below viewer__scrim">
+            <div className="viewer__bottom">
+              <div className="viewer__copy">
+                {item.memoryMeta ? (
+                  <p className="viewer__memory-title">{item.memoryMeta.title}</p>
+                ) : null}
+                {item.caption ? <p className="viewer__caption">{item.caption}</p> : null}
+              </div>
+
+              <div className="viewer__meta">
+                <span className="viewer__meta-primary meta meta--on-ink">
+                  {item.memoryMeta
+                    ? `engraved · ${shortDate(item.memoryMeta.engravedAt)}`
+                    : `${item.nickname} · ${relativeTime(item.createdAt, now)}`}
+                </span>
+                <span className="viewer__meta-secondary">{metaRight}</span>
+              </div>
+
+              {item.moment && onConfirm ? (
+                <div className="viewer__actions">
+                  <button
+                    type="button"
+                    className={`was-here viewer__presence-action${confirmed ? ' is-confirmed' : ''}`}
+                    disabled={confirmed}
+                    onClick={() => onConfirm(item.moment.id)}
+                  >
+                    <MapPinCheck size={17} aria-hidden="true" />
+                    {confirmed ? 'You were here' : 'I was here'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </figcaption>
         </figure>
-      </div>
-
-      <div className="viewer__below">
-        {item.moment && onConfirm ? (
-          <button
-            type="button"
-            className={`was-here${confirmed ? ' is-confirmed' : ''}`}
-            disabled={confirmed}
-            onClick={() => onConfirm(item.moment.id)}
-          >
-            <MapPinCheck size={17} aria-hidden="true" />
-            {confirmed ? 'You were here' : 'I was here'}
-          </button>
-        ) : null}
-
-        {item.caption ? <p className="viewer__caption">{item.caption}</p> : null}
-        {item.memoryMeta ? (
-          <p className="viewer__memory-title">{item.memoryMeta.title}</p>
-        ) : null}
-
-        <div className="viewer__meta">
-          <span className="meta meta--on-ink">
-            {item.memoryMeta
-              ? `engraved · ${shortDate(item.memoryMeta.engravedAt)}`
-              : `${item.nickname} · ${relativeTime(item.createdAt, now)}`}
-          </span>
-          {metaRight}
-        </div>
 
         {items.length > 1 ? (
-          <div className="viewer__pager meta meta--on-ink" aria-label="Photo position">
-            {index + 1} / {items.length}
-          </div>
+          <nav className="viewer__pager" aria-label="Photo position">
+            {items.map((candidate, candidateIndex) => (
+              <button
+                type="button"
+                className={`viewer__pager-dot${candidateIndex === index ? ' is-active' : ''}`}
+                key={candidate.id}
+                aria-label={`View photo ${candidateIndex + 1} of ${items.length}`}
+                aria-current={candidateIndex === index ? 'true' : undefined}
+                onClick={() => goTo(candidateIndex)}
+              >
+                <span className="viewer__pager-dot-mark" aria-hidden="true" />
+              </button>
+            ))}
+          </nav>
         ) : null}
       </div>
 
-      <div className="viewer__handle" aria-hidden="true" />
     </div>,
     document.body,
   );

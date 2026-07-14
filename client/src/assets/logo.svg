@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Placeholder mark — swap this one file to rebrand everywhere.
+       Ink presence-ring + clay engraved place-polygon: the same motif as the
+       signature loading animation. -->
+  <circle cx="24" cy="24" r="19" stroke="#141414" stroke-width="2" />
+  <path d="M18 16 L32 14 L36 25 L28 35 L15 30 Z"
+        stroke="#D85A30" stroke-width="2.3" stroke-linejoin="round" />
+</svg>

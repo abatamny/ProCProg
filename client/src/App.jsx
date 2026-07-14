@@ -3,7 +3,7 @@ import { EntryMorph } from './components/EntryMorph.jsx';
 import { Onboarding, QuietScreen } from './components/Onboarding.jsx';
 import { Shell } from './components/Shell.jsx';
 import { APP_TITLE } from './config.js';
-import { clearToken, fetchHealth, getToken, validateSession } from './lib/api.js';
+import { clearToken, fetchHealth } from './lib/api.js';
 import { useConnection } from './hooks/useConnection.js';
 
 export function App() {
@@ -28,19 +28,8 @@ export function App() {
         const health = await fetchHealth();
         if (cancelled) return;
         setForceEnabled(Boolean(health.forcePlaceId));
-        const stored = getToken();
-        if (!stored) {
-          setBoot('ready');
-          return;
-        }
-        const sessionUser = await validateSession(stored);
-        if (cancelled) return;
-        if (!sessionUser) {
-          clearToken();
-        } else {
-          setUser(sessionUser);
-          setToken(stored);
-        }
+        // No silent auto-enter: the Landing always shows, and its explicit
+        // "Log in" validates any stored session on demand.
         setBoot('ready');
       } catch {
         if (!cancelled) setBoot('error');

@@ -4,6 +4,7 @@ import { DAY_MS } from '../config.js';
 import { compressToWebp } from '../lib/compress.js';
 import { uploadMedia } from '../lib/api.js';
 import { layoutPrints } from '../lib/pebble.js';
+import { avatarFor } from '../lib/avatar.js';
 import { relativeTime, remainingFraction } from '../lib/time.js';
 import { InkViewer } from './InkViewer.jsx';
 
@@ -47,9 +48,8 @@ function LazyPrint({ src, alt, dominantColor, eager = false }) {
 }
 
 export function KnockScreen({
-  snapshot, nickname, active, connected, sendEvent, onViewerToggle, onTypingChange,
+  snapshot, nickname, connected, sendEvent,
 }) {
-  const parentLayer = snapshot.layerStack[1] ?? null;
   const [draft, setDraft] = useState('');
   const [composerOpen, setComposerOpen] = useState(false);
   const [targetPlaceId, setTargetPlaceId] = useState(snapshot.place.id);
@@ -242,12 +242,10 @@ export function KnockScreen({
   function openViewer(knock, event) {
     const rect = event.currentTarget.getBoundingClientRect();
     setViewer({ id: knock.id, origin: { rect, tilt: knock.tilt ?? 0, radius: '3px' } });
-    onViewerToggle(true);
   }
 
   function closeViewer() {
     setViewer(null);
-    onViewerToggle(false);
   }
 
   const viewerItems = photoKnocks.map((knock) => ({
@@ -264,31 +262,7 @@ export function KnockScreen({
 
   return (
     <div className="knock">
-      <header className="knock-hdr">
-        <div className="knock-hdr__heading">
-          <h1 className="knock-hdr__title">{snapshot.place.name}</h1>
-          {parentLayer ? (
-            <p className="knock-hdr__parent">inside {parentLayer.name}</p>
-          ) : null}
-        </div>
-        <div
-          className="knock-hdr__presence"
-          aria-label={`${snapshot.presenceCount} people here now`}
-        >
-          <span
-            className={`live-dot${connected ? ' live-dot--pulse' : ' live-dot--off'}`}
-            aria-hidden="true"
-          />
-          <strong>{snapshot.presenceCount}</strong>
-          <span className="knock-hdr__presence-label">here</span>
-        </div>
-      </header>
-
       <div className="knock__scroller" ref={scrollerRef} onScroll={handleScroll}>
-        <div className="knock__intro">
-          <p className="section-rule section-rule--plain">NOTES LEFT AT THIS PLACE</p>
-        </div>
-
         <div className="ledger">
           {knocks.length === 0 ? (
             <div className="lg-entry lg-entry--empty">
@@ -301,6 +275,7 @@ export function KnockScreen({
 
             if (knock.type === 'image') {
               const src = knock.mediumUrl ?? knock.originalUrl ?? knock.thumbUrl;
+              const avatar = avatarFor(knock.nickname);
               return (
                 <article
                   key={knock.id}
@@ -339,6 +314,13 @@ export function KnockScreen({
                     </button>
                   ) : null}
                   <p className="lg-meta">
+                    <span
+                      className="lg-avatar lg-avatar--inline"
+                      style={{ background: avatar.tone }}
+                      aria-hidden="true"
+                    >
+                      {avatar.initial}
+                    </span>
                     <span className="lg-meta__nick">{knock.nickname}</span>
                     <span className="lg-meta__time">
                       {relativeTime(knock.createdAt, now)}
@@ -352,12 +334,20 @@ export function KnockScreen({
               );
             }
 
+            const avatar = avatarFor(knock.nickname);
             return (
               <article
                 key={knock.id}
                 className={`lg-entry${arriving ? ' is-arriving' : ''}`}
                 style={{ '--fresh': fresh }}
               >
+                <span
+                  className="lg-avatar"
+                  style={{ background: avatar.tone }}
+                  aria-hidden="true"
+                >
+                  {avatar.initial}
+                </span>
                 <p className="lg-text">{knock.content}</p>
                 <p className="lg-meta">
                   <span className="lg-meta__nick">{knock.nickname}</span>
@@ -436,7 +426,6 @@ export function KnockScreen({
                 onClick={() => {
                   setComposerOpen(false);
                   setPickerOpen(false);
-                  onTypingChange?.(false);
                 }}
               >
                 <ChevronDown size={17} aria-hidden="true" />
@@ -451,8 +440,6 @@ export function KnockScreen({
                 aria-label="Knock on this place"
                 enterKeyHint="send"
                 autoFocus
-                onFocus={() => onTypingChange?.(true)}
-                onBlur={() => onTypingChange?.(false)}
                 onChange={(event) => setDraft(event.target.value)}
               />
               <div className="composer__actions">

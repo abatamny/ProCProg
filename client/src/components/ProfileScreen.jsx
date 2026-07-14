@@ -1,25 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
-import { Camera, LogOut, MapPinCheck, Stamp } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, ChevronLeft, LogOut, MapPinCheck, Settings, Stamp } from 'lucide-react';
+import { APP_TITLE } from '../config.js';
+import { avatarFor } from '../lib/avatar.js';
 import { fetchAlbum, fetchProfile } from '../lib/api.js';
 import { shortDate } from '../lib/time.js';
 import { InkViewer } from './InkViewer.jsx';
 
+/* The private home: your mark, your places, the memories you're part of.
+   Deliberately place-free — this page is yours, not any place's. */
 export function ProfileScreen({
-  nickname, active, profileVersion, place, onViewerToggle, onLogout,
+  nickname, profileVersion, placeName, onClose, onLogout,
 }) {
   const [profile, setProfile] = useState(null);
   const [failed, setFailed] = useState(false);
   const [viewer, setViewer] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [arrivedId, setArrivedId] = useState(null);
   const knownFirstMemory = useRef(null);
+  const avatar = useMemo(() => avatarFor(nickname), [nickname]);
 
   useEffect(() => {
     let cancelled = false;
     fetchProfile()
       .then((data) => {
         if (cancelled) return;
-        // A memory that just appeared at the top slides into the trail live
-        // (the demo's peak moment on this screen).
         const firstId = data.memories[0]?.id ?? null;
         if (knownFirstMemory.current !== null && firstId && firstId !== knownFirstMemory.current) {
           setArrivedId(firstId);
@@ -52,7 +56,6 @@ export function ProfileScreen({
         initialId: album.items[0]?.mediaId,
         origin: { rect, tilt: 0 },
       });
-      onViewerToggle(true);
     } catch {
       // leave the card; the viewer just doesn't open
     }
@@ -60,25 +63,45 @@ export function ProfileScreen({
 
   const places = profile?.places ?? [];
   const memories = profile?.memories ?? [];
+  const captured = memories.filter((memory) => memory.role === 'contributor').length;
 
   return (
-    <div className="profile">
-      <div className="profile__scroller">
-        <header className="profile__head">
-          <p className="profile__place">{place.name}</p>
-          <h2 className="profile__title">Your memories</h2>
-          <p className="meta profile__private">only you see this page</p>
-          <p className="meta">
-            {nickname} · {places.length} {places.length === 1 ? 'place' : 'places'} · {memories.length} {memories.length === 1 ? 'moment' : 'moments'}
-          </p>
-        </header>
+    <div className="pfpage" role="dialog" aria-label="Your profile">
+      <header className="pfpage__top">
+        <button type="button" className="pfpage__back" aria-label="Back to the place" onClick={onClose}>
+          <ChevronLeft size={22} aria-hidden="true" />
+        </button>
+      </header>
+
+      <div className="pfpage__scroll">
+        <div className="pfpage__head">
+          <span className="pfpage__disc" style={{ background: avatar.tone }}>
+            {avatar.initial}
+          </span>
+          <h2 className="pfpage__name">{nickname}</h2>
+          <p className="meta pfpage__private">only you see this page</p>
+          <div className="pfstats">
+            <div className="pfstats__cell">
+              <b>{places.length}</b>
+              <span>PLACES</span>
+            </div>
+            <div className="pfstats__cell">
+              <b>{memories.length}</b>
+              <span>MOMENTS</span>
+            </div>
+            <div className="pfstats__cell">
+              <b>{captured}</b>
+              <span>CAPTURED</span>
+            </div>
+          </div>
+        </div>
 
         {failed ? (
           <p className="profile__empty">Your trail could not be read. Pull yourself back later.</p>
         ) : null}
 
         <section>
-          <p className="section-rule section-rule--plain">PLACES</p>
+          <p className="section-rule section-rule--plain">YOUR PLACES</p>
           {places.length === 0 ? (
             <p className="profile__empty">Your first belong stamp is being pressed here.</p>
           ) : places.map((entry) => (
@@ -103,7 +126,7 @@ export function ProfileScreen({
         </section>
 
         <section>
-          <p className="section-rule section-rule--plain">MEMORIES YOU ARE PART OF</p>
+          <p className="section-rule section-rule--plain">MEMORIES YOU'RE PART OF</p>
           {memories.length === 0 ? (
             <p className="profile__empty">
               Shared moments will settle here after they are engraved.
@@ -135,24 +158,48 @@ export function ProfileScreen({
             </button>
           ))}
         </section>
-
-        <button type="button" className="logout" onClick={onLogout}>
-          <LogOut size={15} aria-hidden="true" />
-          Leave quietly
-        </button>
-        <div className="profile__tail" />
+        <div className="pfpage__tail" />
       </div>
+
+      <footer className="pfpage__foot">
+        <button type="button" className="pfpage__btn" onClick={() => setSettingsOpen(true)}>
+          <Settings size={16} aria-hidden="true" />
+          Settings
+        </button>
+        <button type="button" className="pfpage__btn pfpage__btn--logout" onClick={onLogout}>
+          <LogOut size={16} aria-hidden="true" />
+          Log out
+        </button>
+      </footer>
+
+      {settingsOpen ? (
+        <>
+          <button
+            type="button"
+            className="sset-scrim"
+            aria-label="Close settings"
+            onClick={() => setSettingsOpen(false)}
+          />
+          <div className="sset" role="dialog" aria-label="Settings">
+            <span className="sset__grab" aria-hidden="true" />
+            <h3 className="sset__title">Settings</h3>
+            <div className="sset__row"><span>Nickname</span><span className="sset__v">{nickname}</span></div>
+            <div className="sset__row"><span>Location</span><span className="sset__v">On · detected</span></div>
+            <div className="sset__row"><span>Version</span><span className="sset__v">{APP_TITLE} 0.1</span></div>
+            <button type="button" className="sset__logout" onClick={onLogout}>
+              Log out
+            </button>
+          </div>
+        </>
+      ) : null}
 
       {viewer ? (
         <InkViewer
           items={viewer.items}
           initialId={viewer.initialId}
           origin={viewer.origin}
-          placeName={place.name}
-          onClose={() => {
-            setViewer(null);
-            onViewerToggle(false);
-          }}
+          placeName={placeName}
+          onClose={() => setViewer(null)}
         />
       ) : null}
     </div>
